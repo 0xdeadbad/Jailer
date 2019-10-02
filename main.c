@@ -148,6 +148,27 @@ int main(int argc, char **argv) {
 
     waitpid(pid, NULL, 0);
 
+    {
+        uint32_t i;
+        char *source, *target;
+        for(i = 0; i < args.bind_count; i++) {
+            rapidstring str, root_;
+            size_t size;
+
+            rs_init_w(&str, args.binds[i]);
+            source = strtok(rs_data(&str), ":");
+            target = strtok(NULL, ":");
+            rs_init_w(&root_, args.root);
+
+            size = rs_len(&root_);
+            if(rs_data(&root_)[size-1] == '/')
+                rs_erase(&root_, size-1, size);  
+
+            rs_cat(&root_, target);
+            umount(rs_data(&root_));
+        }
+    }
+
     free_all(args.binds, args.bind_count);
     free_all(args.envs, args.env_count);
     free(child_stack);
