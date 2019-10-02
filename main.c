@@ -12,8 +12,6 @@
 #include <errno.h>
 #include <sys/mount.h>
 
-#include "rapidstring.h"
-
 #define DEFAULT_STACK_SIZE 8000000
 
 typedef struct args {
@@ -27,7 +25,7 @@ typedef struct args {
     uint32_t arg_count;
 } ARGS_t;
 
-void free_binds(char **binds, uint32_t bind_count) {
+void free_all(char **binds, uint32_t bind_count) {
     uint32_t i;
 
     for(i = 0; i < bind_count; i++) {
@@ -39,15 +37,19 @@ void free_binds(char **binds, uint32_t bind_count) {
 
 int child(void *args) {
     ARGS_t *v;
+    char *envs[2], *cargs;
     
     v = (ARGS_t*)args;
+    cargs = *v->args;
+    envs[0] = (v->envs) ? *v->envs : NULL;
+    envs[1] = NULL;
 
     chdir(v->root);
     if (chroot(v->root) != 0) {
 		return -1;
 	}
 
-    if(execle(v->command, *v->args, NULL, NULL) == -1) {
+    if(execle(v->command, cargs, NULL, envs) == -1) {
         fprintf(stderr, "%s: %s\n", "execle() error", strerror(errno));
         return -1;
     }
@@ -60,7 +62,6 @@ int main(int argc, char **argv) {
     void *child_stack;
 
     pid_t pid;
-    rapidstring r;
 
     args.binds = NULL;
     args.envs = NULL;
@@ -120,15 +121,16 @@ int main(int argc, char **argv) {
 
     waitpid(pid, NULL, 0);
 
-    free_binds(args.binds, args.bind_count);
+    free_all(args.binds, args.bind_count);
+    free_all(args.envs, args.env_count);
     free(child_stack);
 
     return EXIT_SUCCESS;
 
 err:
-    free_binds(args.binds, args.bind_count);
+    free_all(args.binds, args.bind_count);
+    free_all(args.envs, args.env_count);
     free(child_stack);
-    rs_free(&r);
 
     return EXIT_FAILURE;
 }
