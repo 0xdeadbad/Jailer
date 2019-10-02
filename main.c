@@ -12,6 +12,8 @@
 #include <errno.h>
 #include <sys/mount.h>
 
+#include "rapidstring.h"
+
 #define DEFAULT_STACK_SIZE 8000000
 
 typedef struct args {
@@ -43,6 +45,31 @@ int child(void *args) {
     cargs = *v->args;
     envs[0] = (v->envs) ? *v->envs : NULL;
     envs[1] = NULL;
+
+    {
+        uint32_t i;
+        char *source, *target;
+        
+        for(i = 0; i < v->bind_count; i++) {
+            rapidstring str, root_;
+            size_t size;
+
+            rs_init_w(&str, v->binds[i]);
+            source = strtok(rs_data(&str), ":");
+            target = strtok(NULL, ":");
+            rs_init_w(&root_, v->root);
+
+            size = rs_len(&root_);
+            if(rs_data(&root_)[size-1] == '/')
+                rs_erase(&root_, size-1, size);  
+
+            rs_cat(&root_, target);
+
+            mount(source, rs_data(&root_), "ext4", MS_BIND, "mode=0700,uid=65534");
+
+            rs_free(&str);
+        }
+    }
 
     chdir(v->root);
     if (chroot(v->root) != 0) {
